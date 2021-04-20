@@ -1,0 +1,152 @@
+---
+title: "Assignment"
+author: "Group 6"
+date: "2/16/2021"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r include=FALSE}
+library(ggridges)
+library(reshape2)
+library(readxl)
+library(tidyverse)
+library(ggthemes)
+library(GGally)
+library(RColorBrewer)
+library(cowplot)
+library(dplyr)
+library(tidyverse)
+library(fmsb)
+library(gganimate)
+library(corrplot)
+library(psych)
+library(ggplot2)
+library(ggcorrplot)
+library(beeswarm)
+library(hexbin)
+library(RColorBrewer)
+library(GGally)
+library(gganimate)
+library(rstudioapi)
+library(fmsb)
+library(ggradar)
+```
+
+
+```{r echo=TRUE}
+data <- read_csv("data/data.csv")
+
+data <- data %>% mutate(artists= str_split(str_remove_all(artists, regex("\\[|\\]|'")),","))
+data <- data %>% mutate(first_artist=map_chr(artists, ~ .[1]))
+```
+
+
+```{r}
+data %>% group_by(first_artist) %>% summarise(popularity=sum(popularity)) %>% slice_max(order_by=popularity, n=20) %>% 
+  ggplot() + 
+    geom_col(aes(x=reorder(first_artist, -popularity), y=popularity))+ 
+    theme(axis.text.x = element_text(angle = 45,hjust = 1)) + 
+    xlab("Artist") +
+  ggtitle("Artists by total popularity")
+```
+
+
+```{r}
+data %>%filter(year>=2000) %>%  group_by(first_artist) %>% summarise(popularity=sum(popularity)) %>% slice_max(order_by=popularity, n=20) %>% 
+  ggplot() + geom_col(aes(x=reorder(first_artist, -popularity), y=popularity))+ theme(axis.text.x = element_text(angle = 45,hjust = 1)) + 
+  xlab("Artist") +
+  ggtitle("Artists by total popularity since 2000")
+```
+
+
+```{r}
+temp <- data %>% filter(first_artist=="Taylor Swift"|first_artist=="Frank Sinatra") %>% mutate(first_artist=as.factor(first_artist))
+```
+
+
+```{r}
+comp_cols <- c("danceability", "energy", "loudness", "speechiness", "liveness", "instrumentalness","tempo" , "valence")
+temp %>%   select("first_artist", comp_cols) %>% 
+ggparcoord(groupColumn= 1, columns=comp_cols, order = "anyClass", alphaLines = 0.2, scale="center", splineFactor = 15)
+```
+
+
+
+
+```{r}
+pairplot <- function(data, title=NULL, columns=NULL, geom_type=geom_point, include_dist=FALSE, legend=NULL,...){
+  if (is.null(columns)){
+    columns <- 1:ncol(data)
+  }
+  col_names <- names(data)[columns]
+  plot_list <- list()
+  k <- 1
+  for (i in 1:length(columns)){
+    for (j in 1:length(columns)){
+      if(i==j){
+        p <- ggplot(data,mapping=aes_string(x=col_names[i], fill="first_artist")) + geom_histogram(data=subset(data, first_artist=="Frank Sinatra"), mapping=aes(y=..density..), colour=NA, alpha=0.5, bins=50) + 
+          geom_histogram(data=subset(data, first_artist=="Taylor Swift"), mapping=aes(y=..density..), colour=NA, alpha=0.5, bins=50)
+        if(include_dist){
+          p <- p + geom_density(alpha=.2, fill="#FF6666")
+        }
+        
+        plot_list[[k]] <-  p
+      } else{
+        plot_list[[k]] <- ggplot(data) + geom_type(mapping=aes_string(x=col_names[i], y=col_names[j], color="first_artist"), ...)
+      }
+      
+      k <- k+1
+    }
+  }
+  ggmatrix(plot_list, nrow = length(col_names), ncol = length(col_names), xAxisLabels
+           =col_names, yAxisLabels=col_names, title=title, legend=legend)
+  
+}
+```
+
+
+```{r}
+temp %>% select("first_artist", comp_cols) %>% 
+pairplot(columns=c(2:(length(comp_cols)+1)), geom_type=geom_point, include_dist = FALSE, size=0.5, alpha=0.3, title="Paired scatterplots for Taylor Swift and Frank Sinatra", legend=2)
+```
+
+
+
+
+
+```{r}
+detailed_comp_cols <- c("danceability", "energy", "loudness","valence")
+temp %>% select("first_artist", detailed_comp_cols) %>% 
+pairplot(columns=c(2:(length(detailed_comp_cols)+1)), geom_type=geom_point, include_dist = FALSE, size=0.5, alpha=0.3, title="Paired scatterplots for Taylor Swift and Frank Sinatra", legend=2)
+```
+
+
+```{r}
+detailed_comp_cols <- c("danceability", "energy", "loudness","valence", "popularity")
+
+temp %>% group_by(first_artist) %>% summarise_if(is.numeric, median) %>%  select("first_artist", detailed_comp_cols) %>% rename(group=first_artist) %>% mutate_at(vars(loudness), scales::rescale, from=c(-60, 0)) %>% as.data.frame() -> temp2
+rownames(temp2) <- temp2$group
+temp2 <- temp2 %>% select(-group)
+temp2 <- rbind(rep(1, 5), rep(0, 5), as.data.frame(temp2))
+colors_border=c( rgb(0.2,0.5,0.5,0.9), rgb(0.8,0.2,0.5,0.9))
+colors_in=c( rgb(0.2,0.5,0.5,0.4), rgb(0.8,0.2,0.5,0.4) )
+
+temp2 %>% radarchart(pcol=colors_border , 
+                     #pfcol=colors_in , 
+                     plwd=4 , plty=1,)
+legend(x=0.7, y=1, legend = rownames(temp2[-c(1,2),]), bty = "n", pch=20 , col=colors_border , text.col = "black", cex=1.2, pt.cex=3)
+```
+
+```{r}
+comp_cols <- c("danceability", "energy", "loudness", "valence")
+temp %>%   select("first_artist", comp_cols) %>% 
+ggparcoord(groupColumn= 1, columns=comp_cols, order = "anyClass", alphaLines = 0.2, scale="center", splineFactor = 15)
+```
+
+
